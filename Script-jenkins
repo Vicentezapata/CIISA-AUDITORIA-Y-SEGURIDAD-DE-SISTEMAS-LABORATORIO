@@ -1,0 +1,76 @@
+node {
+    //VARIABLES DE ENTORNO
+    env.DOCKER = tool 'docker';//Mismo nombre que pusimos // en el global tool configuration
+    env.SONARSCANNER = tool 'sonarqube-scanner';//Mismo nombre que pusimos // en el global tool configuration
+    env.DEPENDENCY = tool 'Dependency-Check'
+    env.DOCKER_EXEC = "${DOCKER}/bin/docker";
+    env.DEPENDENCY_EXEC = "${DEPENDENCY}/bin/dependency-check.sh";
+    env.MAIN_VOLUME_FOLDER = "/home/ciisa/Escritorio/Laboratorio" //CARPETA DONDE ESTAN LOS VOLUMENES ANIDADOS (donde esta docker-compose)
+    stage('Descargar Codigo (SCM)') {
+        sh "echo ${WORKSPACE}"
+        timeout(time: 3, unit: 'MINUTES'){
+            input = input(
+            id: 'userInput', messasge: 'Valores para PMV',
+            parameters: [
+                string(description: 'Nombre del proyecto', name: 'Name_Project',defaultValue: 'HACKAZON'),
+                string(description: 'Url de repositorio', name: 'Git_Url',defaultValue: 'https://github.com/rapid7/hackazon.git'),
+                string(description: 'Nombre de la imagen del contenedor indicando la version (ejemplo imagen_nombre:latest)', name: 'Docker_image',defaultValue: 'hackazon_www:latest')
+            ]
+            )
+        }
+        //VARIABLES DE PIPELINE
+        env.REPO        = input.Git_Url
+        env.PROJECT     = input.Name_Project.replace(" ","_")
+        env.GITPROJECT  = input.Git_Url
+        env.IMAGEDOCKER  = input.Docker_image
+        git input.Git_Url
+    }
+    stage('Control SAST') {
+        // requires SonarQube Scanner 2.8+
+        println "**************************************************************************************************"
+        println "*                                          SAST                                                  *"
+        println "**************************************************************************************************"
+        println "TOOL SONNAR-SCANNER: ${SONARSCANNER}"
+        withSonarQubeEnv('SonarQube') { // El nombre de servidor que //pusimos en Configuración del sistema.
+            sh "${SONARSCANNER}/bin/sonar-scanner -Dsonar.projectKey='${PROJECT}' -Dsonar.login='admin' -Dsonar.password='Ciisa.2022' -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.java.libraries=."
+        }
+    }
+    stage('Control IaC Security') {
+        println "**************************************************************************************************"
+        println "*                                      IaC Security                                              *"
+        println "**************************************************************************************************"  
+        
+        println "TOOL docker: ${DOCKER}"
+        sh "${DOCKER_EXEC} image ls"
+        sh "pwd"
+        sh "${DOCKER_EXEC} pull aquasec/trivy:latest"
+        sh "${DOCKER_EXEC} run --rm -v '${MAIN_VOLUME_FOLDER}/trivy/trivy-cache/':/root/.cache/ -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image ${IMAGEDOCKER} > '/opt/scripts/OutputTrivy.txt'"
+        sh "${DOCKER_EXEC} run --rm -v '${MAIN_VOLUME_FOLDER}/trivy/trivy-cache/':/root/.cache/ -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format json ${IMAGEDOCKER} > '/opt/scripts/OutputTrivyJson.txt'"
+        println "*************************************************************" 
+        println "*************** Vulnerabilidades detectadas  ****************" 
+        println "*************************************************************" 
+        sh "cat /opt/scripts/OutputTrivy.txt"
+    }
+    stage('Vulnerability Checks') {
+        println "**************************************************************************************************"
+        println "*                                   Vulnerability Checks                                         *"
+        println "**************************************************************************************************" 
+        println "TOOL docker: ${DOCKER}"
+        //sh "${DOCKER_EXEC} ps"
+        sh "${DOCKER_EXEC} pull kanolato/rapidscan:latest"
+        sh "${DOCKER_EXEC} run -t --rm -v ${MAIN_VOLUME_FOLDER}/reports_rapiscan:/reports kanolato/rapidscan http://localhost:80/ > '/opt/scripts/OutputRapidscan.txt'"
+        println "*************************************************************" 
+        println "*************** Vulnerabilidades detectadas  ****************" 
+        println "*************************************************************" 
+        sh "cat /opt/scripts/OutputRapidscan.txt"
+        println "Log no puede ser procesado favor revisar desde el terminal del server con cat jenkins-scripts/OutputRapidscan.txt" 
+    }
+    stage('Control SCA') {
+        println "**************************************************************************************************"
+        println "*                                          SCA                                                   *"
+        println "**************************************************************************************************" 
+        println "TOOL docker: ${DEPENDENCY}"
+        sh "${DEPENDENCY_EXEC} --project '${PROJECT}' --scan '${WORKSPACE}'"
+        sh "cp ${WORKSPACE}/dependency-check-report.html /opt/scripts/dependencies_reports"
+    }
+}

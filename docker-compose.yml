@@ -1,0 +1,125 @@
+version: '3.1'
+
+services:
+  ##########################################################  HACKZON #########################################################################
+  hackazon_www:
+    image: hackazon_www
+    build: ./hackazon
+    container_name: hackazon_www
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - hackazon_db
+    networks:
+      - sonarnet
+
+  hackazon_db:
+    container_name: hackazon_db
+    image: mysql:5.5
+    environment:
+      - MYSQL_ROOT_PASSWORD=hackazon
+      - MYSQL_DATABASE=hackazon
+      - MYSQL_USER=hackazon
+      - MYSQL_PASSWORD=hackazon
+    restart: always
+    networks:
+      - sonarnet
+    volumes:
+      - ./hackazon/db_init/hackazon/:/docker-entrypoint-initdb.d:ro
+  ##########################################################   PORTAINER ######################################################################
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portainer-data:/data
+    ports:
+      - 9100:9000
+      - 8000:8000
+
+   ########################################################## JENKINS ########################################################################
+  jenkins:
+    image: jenkins/jenkins:lts
+    restart: always
+    privileged: true
+    user: root
+    ports:
+      - 8081:8080
+      - 50000:50000
+    container_name: jenkins
+    volumes:
+      - ./jenkins_home:/var/jenkins_home
+      - ./jenkins-scripts:/opt/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/local/bin/docker:/usr/local/bin/docker
+    networks:
+      - sonarnet
+
+  ########################################################## SONARQUBE ########################################################################
+  sonarqube:
+    image: sonarqube:8.8-community
+    container_name: sonarqube
+    command: 
+      - -Dsonar.ce.javaOpts=-Xmx1192m -Dsonar.web.javaOpts=-Xmx1192m
+      
+    depends_on:
+      - sonarqube-db
+    ports:
+      - "9200:9000"
+    networks:
+      - sonarnet
+    restart: always
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - ./sonarqube/sonarqube_data:/opt/sonarqube/data
+      - ./sonarqube/sonarqube_extensions:/opt/sonarqube/extensions
+      - ./sonarqube/sonarqube_logs:/opt/sonarqube/logs
+      - ./sonarqube/sonarqube_temp:/opt/sonarqube/temp
+      - ./sonarqube/sonarqube_conf:/opt/sonarqube/conf
+      - ./sonarqube/sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+  sonarqube-db:
+    container_name: sonarqube-db
+    image: postgres
+    restart: always
+    networks:
+      - sonarnet
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+    volumes:
+      - ./sonarqube-db/postgresql:/var/lib/postgresql
+      - ./sonarqube-db/postgresql_data:/var/lib/postgresql/data
+
+  ########################################################## SIMPLERISK ########################################################################
+  simplerisk:
+        container_name: simplerisk
+        ports:
+            - '9500:80'
+            - '9400:443'
+            #- '9500:80'
+            #- '8082:444'
+        image: simplerisk/simplerisk
+        build: ./simplerisk
+
+networks:
+  sonarnet:
+    driver: bridge  
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_temp:
+  sonarqube_conf:
+  sonarqube_bundled-plugins:
+  postgresql:
+  postgresql_data:
+  
