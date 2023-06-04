@@ -32,7 +32,7 @@ node {
         println "**************************************************************************************************"
         println "TOOL SONNAR-SCANNER: ${SONARSCANNER}"
         withSonarQubeEnv('SonarQube') { // El nombre de servidor que //pusimos en Configuración del sistema.
-            sh "${SONARSCANNER}/bin/sonar-scanner -Dsonar.projectKey='${PROJECT}' -Dsonar.login='admin' -Dsonar.password='Ciisa.2022' -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.java.libraries=."
+            sh "${SONARSCANNER}/bin/sonar-scanner -Dsonar.projectKey='${PROJECT}' -Dsonar.login='admin' -Dsonar.password='Ciisa123' -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.java.libraries=."
         }
     }
     stage('Control IaC Security') {

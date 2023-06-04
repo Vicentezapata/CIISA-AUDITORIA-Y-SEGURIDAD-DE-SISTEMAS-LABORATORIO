@@ -100,14 +100,12 @@ services:
 
   ########################################################## SIMPLERISK ########################################################################
   simplerisk:
-        container_name: simplerisk
-        ports:
-            - '9500:80'
-            - '9400:443'
-            #- '9500:80'
-            #- '8082:444'
-        image: simplerisk/simplerisk
-        build: ./simplerisk
+    container_name: simplerisk
+    restart: always
+    image: simplerisk/simplerisk
+    ports:
+    - "9300:80"
+    - "443:443"
 
 networks:
   sonarnet:
